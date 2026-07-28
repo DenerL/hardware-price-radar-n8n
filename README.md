@@ -19,7 +19,7 @@ O workflow monitora múltiplos produtos automaticamente, pesquisa ofertas em loj
 
 ## Fluxo
 
-![Workflow](imagens/workflow.png)
+![Workflow](imagens/workfow.png)
 
 ---
 
