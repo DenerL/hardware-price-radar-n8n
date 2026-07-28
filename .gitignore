@@ -1,0 +1,31 @@
+# Variáveis de ambiente
+.env
+.env.*
+
+# Dados do n8n
+n8n_data/
+
+# Logs
+*.log
+logs/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node.js (caso use scripts)
+node_modules/
+
+# Arquivos temporários
+*.tmp
+*.bak

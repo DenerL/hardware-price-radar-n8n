@@ -1,0 +1,293 @@
+{
+  "name": "hardware-price-radar-v1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 3
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -304,
+        -432
+      ],
+      "id": "4e473b5b-d9cf-469f-8909-82a32e317485",
+      "name": "Trigger - A cada 3h"
+    },
+    {
+      "parameters": {
+        "jsCode": "const produtos = [\n  {\n    nome: \"ryzen 7 5700x\",\n    busca: \"ryzen 7 5700x\",\n    precoAlvo: 1300,\n    loja: \"google_shopping\",\n    usaZenrows: false,\n    usaUltraPremium: false,\n    filtro: [\"5700x\"],\n    excluir: [\"5700x3d\", \"5700g\", \"pc gamer\", \"upgrade\", \"placa\", \"water cooler\", \"ssd\", \"rtx\", \"gabinete\", \"fonte\"]\n  },\n  {\n    nome: \"rtx 5060 8gb\",\n    busca: \"rtx 5060 8gb\",\n    precoAlvo: 2300,\n    loja: \"google_shopping\",\n    usaZenrows: false,\n    usaUltraPremium: false,\n    filtro: [\"rtx\", \"5060\", \"8gb\"],\n    excluir: [\"3060\", \"4060\", \"cyclone\", \"ti\", \"super\", \"supercolor\", \"pc gamer\", \"upgrade\", \"water cooler\", \"ssd\", \"gabinete\", \"fonte\"]\n  },\n  {\n    nome: \"rtx 5070\",\n    busca: \"rtx 5070\",\n    precoAlvo: 4700,\n    loja: \"google_shopping\",\n    usaZenrows: false,\n    usaUltraPremium: false,\n    filtro: [\"rtx\", \"5070\"],\n    excluir: [\"3060\", \"4060\", \"4070\", \"cyclone\", \"ti\", \"super\", \"supercolor\", \"pc gamer\", \"upgrade\", \"water cooler\", \"ssd\", \"gabinete\", \"fonte\"]\n  },\n  {\n    nome: \"memoria ram xpg 8gb\",\n    busca: \"memoria ram xpg 8gb\",\n    precoAlvo: 500,\n    loja: \"google_shopping\",\n    usaZenrows: false,\n    usaUltraPremium: false,\n    filtro: [\"ddr4\", \"xpg\", \"8gb\"],\n    excluir: [\"kit\", \"rgb\", \"pc gamer\", \"upgrade\", \"placa\", \"water cooler\", \"ssd\", \"rtx\", \"gabinete\", \"fonte\"]\n  }\n];\n\nreturn produtos.map(p => ({\n  json: p\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -432
+      ],
+      "id": "43b90ed7-fae5-4c57-bd01-74a00c5b15ed",
+      "name": "Lista de Produtos"
+    },
+    {
+      "parameters": {
+        "batchSize": 4,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        144,
+        -432
+      ],
+      "id": "640411b9-9116-4731-a0f1-8279d0532481",
+      "name": "Loop Produtos"
+    },
+    {
+      "parameters": {
+        "url": "={{\"https://serpapi.com/search?engine=google_shopping&q=\" + encodeURIComponent($json.busca) + \"&hl=pt&gl=br&api_key=\" + $env.SERPAPI_API_KEY}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        368,
+        -512
+      ],
+      "id": "fd016de1-459f-4177-9d7b-196d6448d27a",
+      "name": "Busca Google Shopping"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const loopItem = $('Loop Produtos').item.json;\nconst respostaApi = $input.item.json;\n\nreturn { ...loopItem, ...respostaApi };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        -512
+      ],
+      "id": "eeec8df9-954b-4ebe-a671-1d68c0cfbd1d",
+      "name": "Junta Dados do Produto"
+    },
+    {
+      "parameters": {
+        "jsCode": "const todos = $input.all();\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.ultimosPrecos) staticData.ultimosPrecos = {};\n\nconst saida = [];\n\nfor (const item of todos) {\n    const html = item.json.data;\n    const loja = item.json.loja;\n    const precoAlvo = item.json.precoAlvo;\n    const nomeMonitorado = item.json.nome;\n    const filtro = item.json.filtro || [];\n    const excluir = item.json.excluir || [];\n\n    function filtraCandidatos(produtos) {\n        return produtos.filter(p => {\n            const nomeLower = p.nome.toLowerCase();\n            const passaFiltro = filtro.every(termo => nomeLower.includes(termo.toLowerCase()));\n            const naoExcluido = !excluir.some(termo => nomeLower.includes(termo.toLowerCase()));\n            return passaFiltro && naoExcluido;\n        });\n    }\n\n    let candidatos = [];\n\n    if (loja === 'amazon') {\n        const asins = [...new Set([...html.matchAll(/data-asin=\"([A-Z0-9]{10})\"/g)].map(m => m[1]))];\n        const produtos = [];\n\n        for (const asin of asins) {\n            const marcador = `data-asin=\"${asin}\"`;\n            const idx = html.indexOf(marcador);\n            const proximoIdx = html.indexOf('data-asin=\"', idx + 1);\n            const bloco = html.slice(idx, proximoIdx !== -1 ? proximoIdx : idx + 8000);\n\n            const tituloMatch = bloco.match(/<h2[^>]*>\\s*<span>([\\s\\S]*?)<\\/span>\\s*<\\/h2>/i);\n            const nome = tituloMatch ? tituloMatch[1].trim() : null;\n\n            const precoMatch = bloco.match(\n                /data-cy=\"price-recipe\"[\\s\\S]*?<span class=\"a-price\"[^>]*>\\s*<span class=\"a-offscreen\">R\\$(?:&nbsp;)?\\s*([\\d.,]+)<\\/span>/i\n            );\n            if (!precoMatch) continue;\n\n            const preco = Number(precoMatch[1].replace(/\\./g, '').replace(',', '.'));\n\n            const linkMatch = bloco.match(/href=\"(\\/[^\"]*\\/dp\\/[A-Z0-9]{10}[^\"]*)\"/i);\n            let url = linkMatch ? linkMatch[1] : null;\n            if (url) url = 'https://www.amazon.com.br' + url.split('/ref=')[0];\n\n            if (nome && preco) produtos.push({ nome, preco, url });\n        }\n\n        candidatos = filtraCandidatos(produtos);\n\n    } else if (loja === 'kabum') {\n        const match = html.match(/<script id=\"__NEXT_DATA__\"[^>]*>([\\s\\S]*?)<\\/script>/i);\n        if (match) {\n            const dados = JSON.parse(match[1]);\n            const itens = dados.props.pageProps.data.catalogServer.data;\n\n            const produtos = itens\n                .filter(i => i.available && i.priceWithDiscount)\n                .map(i => ({\n                    nome: i.name,\n                    preco: i.priceWithDiscount,\n                    url: `https://www.kabum.com.br/produto/${i.code}/${i.friendlyName}`\n                }));\n\n            candidatos = filtraCandidatos(produtos);\n        }\n\n    } else if (loja === 'terabyte') {\n        const blocos = [...html.matchAll(\n            /<div class=\"tss-card-name\">([\\s\\S]*?)<\\/div>[\\s\\S]*?<div class=\"tss-card-price\">R\\$\\s*([\\d.,]+)<\\/div>[\\s\\S]*?data-tss-link=\"([^\"]+)\"/gi\n        )];\n\n        const produtos = [];\n        const vistos = new Set();\n\n        for (const bloco of blocos) {\n            const nome = bloco[1].trim();\n            const preco = Number(bloco[2].replace(/\\./g, '').replace(',', '.'));\n            const url = 'https://www.terabyteshop.com.br' + bloco[3];\n\n            if (vistos.has(url)) continue;\n            vistos.add(url);\n\n            if (nome && preco) produtos.push({ nome, preco, url });\n        }\n\n        candidatos = filtraCandidatos(produtos);\n    }\n\n    if (loja !== 'google_shopping') {\n        if (candidatos.length === 0) {\n            saida.push({\n                json: {\n                    nomeMonitorado, loja, precoAlvo,\n                    erro: 'Nenhum candidato encontrado',\n                    notificar: false\n                }\n            });\n            continue;\n        }\n\n        const maisBarato = candidatos.reduce((menor, atual) => atual.preco < menor.preco ? atual : menor);\n        const chave = `${nomeMonitorado}__${loja}`;\n        const abaixoDoAlvo = maisBarato.preco <= precoAlvo;\n        const ultimoPrecoNotificado = staticData.ultimosPrecos[chave];\n        const deveNotificar = abaixoDoAlvo && (ultimoPrecoNotificado === undefined || ultimoPrecoNotificado !== maisBarato.preco);\n\n        if (deveNotificar) staticData.ultimosPrecos[chave] = maisBarato.preco;\n        if (!abaixoDoAlvo && ultimoPrecoNotificado !== undefined) delete staticData.ultimosPrecos[chave];\n\n        const economia = precoAlvo - maisBarato.preco;\n\n        saida.push({\n            json: {\n                nomeMonitorado,\n                loja,\n                item: maisBarato.nome,\n                nome: maisBarato.nome,\n                preco: maisBarato.preco,\n                precoFormatado: maisBarato.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),\n                link: maisBarato.url,\n                url: maisBarato.url,\n                thumbnail: '',\n                economia: economia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),\n                precoAlvo,\n                productId: null,\n                notificar: deveNotificar\n            }\n        });\n        continue;\n    }\n\n    const resultadosApi = item.json.shopping_results || [];\n\n    const lojasConfiaveis = [\n        'kabum', 'amazon', 'pichau', 'terabyte', 'magazine luiza', 'magalu',\n        'americanas', 'mercado livre', 'submarino', 'girafa', 'aoc', 'fast shop',\n        'casas bahia', 'shoptime', 'novatrend', 'skyhub'\n    ];\n\n    const produtosGoogle = resultadosApi\n        .filter(r => r.extracted_price)\n        .filter(r => r.product_link || r.link)\n        .filter(r => {\n            const sourceLower = (r.source || '').toLowerCase();\n            return lojasConfiaveis.some(l => sourceLower.includes(l));\n        })\n        .map(r => ({\n            nome: r.title,\n            preco: r.extracted_price,\n            url: r.product_link || r.link,\n            thumbnail: r.thumbnail || null,\n            loja_real: r.source,\n            pageToken: r.immersive_product_page_token || null\n        }));\n\n    const candidatosGoogle = filtraCandidatos(produtosGoogle);\n\n    if (candidatosGoogle.length === 0) {\n        saida.push({\n            json: {\n                nomeMonitorado, loja, precoAlvo,\n                erro: 'Nenhum candidato encontrado',\n                notificar: false\n            }\n        });\n        continue;\n    }\n\n    const maisBaratoGoogle = candidatosGoogle.reduce((menor, atual) => atual.preco < menor.preco ? atual : menor);\n    const economia = precoAlvo - maisBaratoGoogle.preco;\n    const abaixoDoAlvoGoogle = maisBaratoGoogle.preco <= precoAlvo;\n\n    saida.push({\n        json: {\n            nomeMonitorado,\n            loja: maisBaratoGoogle.loja_real,\n            item: maisBaratoGoogle.nome,\n            nome: maisBaratoGoogle.nome,\n            preco: maisBaratoGoogle.preco,\n            precoFormatado: maisBaratoGoogle.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),\n            link: maisBaratoGoogle.url,\n            url: maisBaratoGoogle.url,\n            thumbnail: maisBaratoGoogle.thumbnail || '',\n            economia: economia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),\n            precoAlvo,\n            productId: maisBaratoGoogle.pageToken,\n            notificar: abaixoDoAlvoGoogle\n        }\n    });\n}\n\nreturn saida;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        -512
+      ],
+      "id": "183235b2-7022-4c4f-b7fc-5ed16cd72b95",
+      "name": "Extrai Melhor Preço"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3e8efcbc-628e-48ac-a315-db6b884f8327",
+              "leftValue": "={{ $json.notificar }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1040,
+        -432
+      ],
+      "id": "24d4da20-c1cb-437b-90e8-3b32d73393ff",
+      "name": "Preço Abaixo do Alvo?"
+    },
+    {
+      "parameters": {
+        "url": "={{\"https://serpapi.com/search?engine=google_immersive_product&page_token=\" + $json.productId + \"&api_key=\" + $env.SERPAPI_API_KEY + \"&gl=br&hl=pt\"}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1264,
+        -432
+      ],
+      "id": "dfd6519f-4a5e-439e-9f3d-faea2ef02238",
+      "name": "Busca Lojas Reais"
+    },
+    {
+      "parameters": {
+        "jsCode": "const todosOsItens = $input.all();\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.ultimosPrecosPorLoja) staticData.ultimosPrecosPorLoja = {};\n\nconst lojasConfiaveis = [\n    'kabum', 'amazon', 'pichau', 'terabyte', 'magazine luiza', 'magalu',\n    'americanas', 'mercado livre', 'submarino', 'fast shop',\n    'casas bahia', 'shoptime'\n];\n\nfunction precoTotal(loja) {\n    return loja.extracted_total || loja.extracted_price || Infinity;\n}\n\nfunction linkValido(url) {\n    return typeof url === 'string' && url.trim().length > 0 && url.startsWith('http');\n}\n\nfunction lojaConfiavel(nome) {\n    const nomeLower = (nome || '').toLowerCase();\n    return lojasConfiaveis.some(l => nomeLower.includes(l));\n}\n\nconst resultados = [];\n\ntodosOsItens.forEach((itemAtual, index) => {\n    const dadosProduto = itemAtual.json;\n    const original = $('Extrai Melhor Preço').itemMatching(index).json;\n\n    // Se esse item não tinha productId (não era Google Shopping ou não foi elegível), ignora\n    if (!original.productId) return;\n\n    const todasAsLojas = dadosProduto.product_results?.stores || [];\n\n    // Filtra: só lojas confiáveis, com preço e link válidos\n    const lojasValidas = todasAsLojas.filter(l =>\n        lojaConfiavel(l.name) &&\n        linkValido(l.link) &&\n        precoTotal(l) !== Infinity\n    );\n\n    if (lojasValidas.length === 0) return;\n\n    // Ordena do mais barato pro mais caro e pega as 2 primeiras\n    const duasMaisBaratas = lojasValidas\n        .sort((a, b) => precoTotal(a) - precoTotal(b))\n        .slice(0, 2);\n\n    for (const loja of duasMaisBaratas) {\n        const preco = precoTotal(loja);\n\n        // Só notifica se estiver de fato abaixo do preço-alvo\n        if (preco > original.precoAlvo) continue;\n\n        const nomeLoja = loja.name;\n        const chave = `${original.nomeMonitorado}__${nomeLoja}`;\n\n        const ultimoPreco = staticData.ultimosPrecosPorLoja[chave];\n        const deveNotificar = ultimoPreco === undefined || ultimoPreco !== preco;\n\n        if (deveNotificar) {\n            staticData.ultimosPrecosPorLoja[chave] = preco;\n\n            resultados.push({\n                json: {\n                    ...original,\n                    loja: nomeLoja,\n                    preco,\n                    precoFormatado: preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),\n                    link: loja.link,\n                    url: loja.link,\n                    economia: (original.precoAlvo - preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),\n                    notificar: true\n                }\n            });\n        }\n    }\n});\n\nreturn resultados;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        -432
+      ],
+      "id": "e7570779-7876-4e52-925c-028e53574648",
+      "name": "Filtra Lojas Confiáveis",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.DISCORD_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"content\": null,\n  \"embeds\": [\n    {\n      \"title\": \"🚨 Baixou! {{ $json.item }}\",\n      \"url\": \"{{ $json.link }}\",\n      \"color\": 5814783,\n      \"description\": \"Encontramos uma oferta abaixo do seu preço alvo!\",\n      \"thumbnail\": {\n        \"url\": \"{{ $json.thumbnail }}\"\n      },\n      \"fields\": [\n        {\n          \"name\": \"🏪 Loja\",\n          \"value\": \"{{ $json.loja }}\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"💰 Preço\",\n          \"value\": \"**{{ $json.precoFormatado }}**\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"📉 Economia\",\n          \"value\": \"{{ $json.economia }}\",\n          \"inline\": true\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1712,
+        -432
+      ],
+      "id": "d510fe7f-0c3e-442e-8169-108731a98896",
+      "name": "Envia Discord"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger - A cada 3h": {
+      "main": [
+        [
+          {
+            "node": "Lista de Produtos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lista de Produtos": {
+      "main": [
+        [
+          {
+            "node": "Loop Produtos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Produtos": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Busca Google Shopping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Busca Google Shopping": {
+      "main": [
+        [
+          {
+            "node": "Junta Dados do Produto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Junta Dados do Produto": {
+      "main": [
+        [
+          {
+            "node": "Extrai Melhor Preço",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrai Melhor Preço": {
+      "main": [
+        [
+          {
+            "node": "Preço Abaixo do Alvo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preço Abaixo do Alvo?": {
+      "main": [
+        [
+          {
+            "node": "Busca Lojas Reais",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Loop Produtos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Busca Lojas Reais": {
+      "main": [
+        [
+          {
+            "node": "Filtra Lojas Confiáveis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtra Lojas Confiáveis": {
+      "main": [
+        [
+          {
+            "node": "Envia Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "52cd59b0-b942-4896-915f-535c2a4a8492",
+  "meta": {
+    "instanceId": "7bf4f38ad17536dc05c8cd94b089cea6b55c843e8813d67888b54d2520dc9560"
+  },
+  "nodeGroups": [],
+  "id": "Ki2yq1iSPjGBYTyM",
+  "tags": []
+}
