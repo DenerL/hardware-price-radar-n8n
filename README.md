@@ -19,7 +19,7 @@ O workflow monitora múltiplos produtos automaticamente, pesquisa ofertas em loj
 
 ## Fluxo
 
-![Workflow](images/workflow.png)
+![workflow](images/workflow.png)
 
 ---
 
@@ -93,11 +93,3 @@ Discord
 - Código JavaScript para tratamento inteligente dos dados
 
 ---
-
-## Melhorias futuras
-
-- Suporte para novas lojas
-- Histórico de preços
-- Dashboard de acompanhamento
-- Integração com Telegram
-- Exportação dos dados para banco de dados
