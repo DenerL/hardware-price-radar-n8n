@@ -1,4 +1,4 @@
-# Hardware Price Radar
+# 🚀 Hardware Price Radar
 
 Sistema automatizado para monitoramento de preços de hardware desenvolvido com **n8n**, **Docker** e **SerpAPI**.
 
@@ -6,7 +6,7 @@ O workflow monitora múltiplos produtos automaticamente, pesquisa ofertas em loj
 
 ---
 
-## Tecnologias
+## 🛠️ Tecnologias
 
 - n8n
 - Docker
@@ -17,13 +17,13 @@ O workflow monitora múltiplos produtos automaticamente, pesquisa ofertas em loj
 
 ---
 
-## Fluxo
+## 🔄 Fluxo
 
 ![Workflow](imagens/workflow.png)
 
 ---
 
-## Funcionalidades
+## ⚙️ Funcionalidades
 
 - Monitoramento automático por agendamento
 - Suporte a múltiplos produtos
@@ -36,7 +36,7 @@ O workflow monitora múltiplos produtos automaticamente, pesquisa ofertas em loj
 
 ---
 
-## Arquitetura
+## 🏗️ Arquitetura
 
 ```text
 Scheduler
@@ -65,7 +65,7 @@ Discord
 
 ---
 
-## Como funciona
+## 📌 Como funciona
 
 1. O workflow inicia automaticamente em um horário configurado.
 
@@ -83,7 +83,7 @@ Discord
 
 ---
 
-## Diferenciais
+## ⭐ Diferenciais
 
 - Desenvolvido totalmente no n8n
 - Executado em Docker
