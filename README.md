@@ -39,28 +39,39 @@ O workflow monitora múltiplos produtos automaticamente, pesquisa ofertas em loj
 ## 🏗️ Arquitetura
 
 ```text
-Scheduler
-    │
-    ▼
+Schedule Trigger
+        │
+        ▼
 Lista de Produtos
-    │
-    ▼
-Loop dos Produtos
-    │
-    ▼
-Pesquisa Google Shopping
-    │
-    ▼
-Busca de Ofertas
-    │
-    ▼
-Filtragem
-    │
-    ▼
-Comparação de Preço
-    │
-    ▼
-Discord
+        │
+        ▼
+Loop de Produtos
+        │
+        ▼
+SerpAPI - Google Shopping
+        │
+        ▼
+Extração do Melhor Preço
+        │
+        ▼
+Validação do Preço Alvo
+        │
+        ├─────────────── Não
+        │
+        ▼ Sim
+Google Immersive Product
+        │
+        ▼
+Filtro de Lojas Confiáveis
+        │
+        ▼
+Controle de Preços Anteriores
+        │
+        ▼
+Discord Webhook
+        │
+        ▼
+Alerta de Oferta
 ```
 
 ---
